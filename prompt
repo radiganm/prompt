@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+## prompt
+## Mac Radigan
+##
+## Copyright 2016 Mac Radigan
+## All Rights Reserved
+
+ #use strict;
+ #use warnings;
+  use Getopt::Long qw(GetOptions);
+  use Term::ReadLine;
+  use IPC::Open3;
+  use IO::Select;
+
+  my $verbose;
+  GetOptions(
+    'verbose' => \$verbose,
+    ) or die "Usage: $0 --verbose executable\n";
+
+  my $exe = $ARGV[0];
+  my $pid = open3(\*WRITE, \*READ, \*ERROR, $exe) or die "failed: $!\n";
+  my $sread = new IO::Select();
+  my $serr  = new IO::Select();
+  $sread->add(\*READ);
+  $serr->add(\*ERROR);
+
+  my $term = Term::ReadLine->new('');
+  my $prompt = '>< ';
+  my $OUT = $term->OUT || \*STDOUT;
+  while( defined ($_ = $term->readline($prompt)) )
+  {
+    my $cmd = $_[2..$#_];
+    exit(0) if $_ =~ m#^[:;]q$#;
+    `$cmd`  if $_ =~ m#^[:;]\!.*#;
+    print WRITE "$_\n";
+    select(undef, undef, undef, .01);
+    while($serr->can_read(0))
+    {
+      chomp(my $res = <ERROR>);
+      print $OUT $res, "\n";
+    }
+    while($sread->can_read(0))
+    {
+      chomp(my $res = <READ>);
+      print $OUT $res, "\n";
+    }
+    $term->addhistory($_) if /\S/;
+  }
+
+## *EOF*
